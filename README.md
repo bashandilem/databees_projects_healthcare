@@ -26,3 +26,20 @@ This is a simplified single-compartment visual model, not a validated physiologi
 Fonts are bundled locally. No runtime network service is needed, and no patient data leaves the browser.
 
 `npm run test:browser` validates actual Chromium interactions with a running server. It uses `/usr/bin/chromium` by default; override with `CHROMIUM_PATH`. Set `TEST_URL` to test another server (for example a production preview). Screenshots are saved outside the repository in `/tmp/asthma-validation/`.
+
+## Publish with GitHub Pages
+
+Open the repository's **Settings → Pages** and set **Build and deployment → Source** to **GitHub Actions**. The `.github/workflows/pages.yml` workflow tests and builds the application on each push to `main`, then deploys `dist/` to Pages. No Netlify account or external API is needed.
+
+If the first run happened before Pages was enabled, open **Actions → Deploy to GitHub Pages → Run workflow**, select `main`, and run it again. Wait for both build and deploy jobs to succeed. The site is then available at `https://bashandilem.github.io/databees_projects_healthcare/`.
+
+The workflow passes Vite's `--base=/databees_projects_healthcare/` (derived from the repository name) so scripts, styles and bundled fonts work at the project URL. The ordinary development and Netlify builds still use `/`. To validate the Pages build locally:
+
+```sh
+npm run build -- --base=/databees_projects_healthcare/
+npm run preview -- --port 4173 --base=/databees_projects_healthcare/
+# In a second terminal:
+TEST_URL=http://127.0.0.1:4173/databees_projects_healthcare/ npm run test:browser
+```
+
+Publishing makes the demonstration accessible to visitors. If Pages is unavailable for this repository, check repository visibility and GitHub plan support in Settings → Pages.
