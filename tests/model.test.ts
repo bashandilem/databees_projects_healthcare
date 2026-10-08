@@ -1,0 +1,9 @@
+import { describe, expect, it } from 'vitest';
+import { physiology, scenarios, interpolate, baseline } from '../src/model';
+describe('connected respiratory physiology',()=>{
+ it('reproduces a healthy baseline',()=>{expect(baseline.airflow).toBe(100);expect(baseline.spo2).toBe(98);expect(baseline.rate).toBe(14);expect(baseline.label).toBe('NORMAL');});
+ it('progressively narrows the lumen and increases respiratory burden',()=>{const ordered=['Healthy','Mild Asthma','Moderate Attack','Severe Attack'].map(n=>physiology(scenarios[n]));for(let i=1;i<ordered.length;i++){expect(ordered[i].radius).toBeLessThan(ordered[i-1].radius);expect(ordered[i].airflow).toBeLessThan(ordered[i-1].airflow);expect(ordered[i].resistance).toBeGreaterThan(ordered[i-1].resistance);expect(ordered[i].spo2).toBeLessThan(ordered[i-1].spo2);expect(ordered[i].work).toBeGreaterThan(ordered[i-1].work);}});
+ it('handles extreme slider inputs without unbounded values',()=>{const m=physiology({constriction:80,inflammation:100,mucus:100,rate:35,activity:2,allergen:3});expect(m.resistance).toBeLessThanOrEqual(24);expect(m.airflow).toBeGreaterThanOrEqual(0);expect(m.spo2).toBeGreaterThanOrEqual(80);expect(m.rate).toBeLessThanOrEqual(35);expect(Object.values(m).filter(x=>typeof x==='number').every(Number.isFinite)).toBe(true);});
+ it('responds to each pathological input and activity',()=>{for(const key of ['constriction','inflammation','mucus','activity','allergen'] as const){const changed=physiology({...scenarios.Healthy,[key]:key==='activity'?2:key==='allergen'?3:70});expect(changed.airflow).toBeLessThan(baseline.airflow);expect(changed.resistance).toBeGreaterThan(baseline.resistance);}});
+ it('interpolates attack and recovery endpoints',()=>{const a=scenarios.Healthy,b=scenarios['Severe Attack'];expect(interpolate(a,b,0)).toEqual(a);expect(interpolate(a,b,1)).toEqual(b);expect(physiology(interpolate(b,a,.5)).airflow).toBeGreaterThan(physiology(b).airflow);});
+});

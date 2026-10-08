@@ -1,0 +1,4 @@
+import { ShieldCheck, TriangleAlert } from 'lucide-react';
+import { baseline } from '../model';
+import type { Metrics } from '../model';
+export function AnomalyAlert({metrics:m}:{metrics:Metrics}) {const anomaly=m.severity>=40;return <section className={`anomaly ${anomaly?'detected':''}`} style={anomaly?{borderColor:m.color+'55',background:m.color+'09'}:undefined}>{anomaly?<TriangleAlert size={18} color={m.color}/>:<ShieldCheck size={18} color="#49dba8"/>}<div><strong style={{color:m.color}}>{anomaly?'ANOMALY DETECTED':'BASELINE PATTERN PRESERVED'}</strong><p>{anomaly?`Resistance +${Math.round((m.resistance/baseline.resistance-1)*100)}% · Airflow −${Math.round(baseline.airflow-m.airflow)}% · Respiratory rate ${m.rate.toFixed(0)}/min`:'No significant deviation from the demo baseline.'}</p></div></section>}
