@@ -4,6 +4,7 @@ export default defineConfig({
  plugins: [react()],
  build: { rollupOptions: { output: { manualChunks(id) {
   if (id.includes('node_modules')) {
+   if (id.includes('/three/')) return 'anatomy-engine';
    if (/recharts|d3-|victory|decimal|es-toolkit|eventemitter|immer|redux|reselect/.test(id)) return 'telemetry';
    return 'vendor';
   }

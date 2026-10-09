@@ -1,23 +1,96 @@
-import { useEffect, useRef } from 'react';
-import type { Metrics } from '../model';
-const left = 'M239 139 C219 136 190 147 163 176 C137 206 109 258 103 319 C96 364 100 415 121 438 C143 458 192 447 219 430 C240 416 249 405 251 379 L250 185 C250 161 248 145 239 139Z';
-const right = 'M281 139 C304 136 337 155 361 183 C389 218 414 272 420 322 C426 368 421 416 400 438 C378 458 331 447 303 430 C282 416 271 405 269 379 L270 185 C270 161 272 145 281 139Z';
-export const branches = ['M260 72 L260 193 Q260 216 219 244 L176 274','M260 193 Q267 216 301 244 L347 274','M219 244 L192 220 L172 199','M219 244 L219 291 L186 329 L155 346','M219 291 L231 340 L215 391','M186 329 L178 384 L145 406','M176 274 L148 278 L125 315','M176 274 L163 308 L135 331','M301 244 L328 220 L348 199','M301 244 L302 291 L335 329 L365 346','M302 291 L289 340 L306 391','M335 329 L343 384 L377 406','M347 274 L374 278 L398 315','M347 274 L359 308 L387 331'];
-export function DigitalTwinLung({metrics:m,phase,paused}:{metrics:Metrics;phase:number;paused:boolean}) {
- const svgRef=useRef<SVGSVGElement>(null);
- useEffect(()=>{if(paused)svgRef.current?.pauseAnimations();else svgRef.current?.unpauseAnimations();},[paused]);
- const expansion = 1 + Math.sin(phase) * .027 * (m.airflow / 100);
- return <div className="lung-stage"><div className="stage-corner">ANTERIOR VIEW <span>ANATOMICAL MODEL 01</span></div><svg ref={svgRef} className="lung-svg" viewBox="0 0 520 500" role="img" aria-label={`Animated lung digital twin. Airflow ${Math.round(m.airflow)} percent, airway diameter ${Math.round(m.radius*100)} percent.`}>
- <defs><linearGradient id="lung-fill" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#183c50" stopOpacity=".8"/><stop offset=".5" stopColor="#102333" stopOpacity=".55"/><stop offset="1" stopColor="#256075" stopOpacity=".4"/></linearGradient><radialGradient id="lung-glow"><stop stopColor={m.color} stopOpacity=".13"/><stop offset="1" stopColor={m.color} stopOpacity="0"/></radialGradient><filter id="glow"><feGaussianBlur stdDeviation="3"/></filter><clipPath id="lung-clip"><path d={left}/><path d={right}/></clipPath></defs>
- <ellipse cx="260" cy="282" rx="238" ry="217" fill="url(#lung-glow)"/>
- <g className="rib-cage" fill="none" stroke="#477188" strokeWidth="1" opacity=".15">{Array.from({length:8},(_,i)=><g key={i}><path d={`M253 ${140+i*34} Q${88-i*2} ${100+i*35} ${81+i*3} ${220+i*24}`}/><path d={`M267 ${140+i*34} Q${432+i*2} ${100+i*35} ${439-i*3} ${220+i*24}`}/></g>)}</g>
- <g transform={`translate(260 280) scale(${expansion} ${expansion}) translate(-260 -280)`}>
- <path d={left} fill="url(#lung-fill)" stroke="#5998b1" strokeOpacity=".65" strokeWidth="1.4"/><path d={right} fill="url(#lung-fill)" stroke="#5998b1" strokeOpacity=".65" strokeWidth="1.4"/>
- <g clipPath="url(#lung-clip)" stroke={m.color} strokeOpacity=".12" fill="none">{Array.from({length:18},(_,i)=><g key={i}><path d={`M${112+i*8} 155 Q${80+i*7} 315 ${119+i*7} 451`}/><path d={`M${280+i*8} 155 Q${310+i*8} 315 ${276+i*8} 451`}/></g>)}<path d="M102 320 Q177 350 245 304 M280 307 Q358 344 420 320 M288 238 Q357 250 397 265"/></g>
- {branches.map((d,i)=><g key={d}><path d={d} fill="none" stroke={m.color} strokeOpacity=".2" strokeWidth={(i<2?20:11)+m.burden*.075} strokeLinecap="round"/><path d={d} fill="none" stroke="#1c3442" strokeWidth={i<2?14:7} strokeLinecap="round"/><path d={d} fill="none" stroke={m.color} strokeOpacity=".7" strokeWidth={Math.max(1,(i<2?11:5)*m.radius)} strokeLinecap="round"/></g>)}
- {Array.from({length:12},(_,i)=><path key={i} d={`M250 ${80+i*8} L270 ${80+i*8}`} stroke="#87b5c5" strokeWidth="1" opacity=".4"/>)}
- {branches.slice(0,m.airflow<35?5:10).map((d,i)=>Array.from({length:m.airflow<35?2:4},(_,j)=>{const travel=((phase/(Math.PI*2))*(.28+m.airflow/90)+j/4+i*.17)%1; return <circle key={`${i}-${j}`} r={i<2?2.6:1.7} fill="#c2f8ff" opacity={.85}><animateMotion dur={`${2+ (100-m.airflow)/12}s`} begin={`${-j*(2+(100-m.airflow)/12)/4}s`} repeatCount="indefinite" path={d}/><title>{travel.toFixed(2)}</title></circle>;}))}
- </g><g fill="#7a94a8" fontSize="9" fontFamily="monospace"><path d="M272 102 L329 81 L387 81" fill="none" stroke="#456273"/><text x="335" y="74">TRACHEA</text><path d="M330 278 L408 246 L465 246" fill="none" stroke="#456273"/><text x="412" y="238">BRONCHI</text><path d="M151 381 L80 404 L31 404" fill="none" stroke="#456273"/><text x="31" y="397">RIGHT LUNG</text><text x="342" y="468">LEFT LUNG</text></g>
- <path d="M260 28 L260 55 M255 49 L260 55 L265 49" fill="none" stroke="#79d7ee" strokeWidth="1.5"/><text x="277" y="41" fill="#79d7ee" fontSize="8" letterSpacing="2">AIR INTAKE</text></svg>
- <div className="lung-overlay"><span className="live-pip"/> {paused?'SIMULATION PAUSED':Math.cos(phase)>0?'INHALATION':'EXHALATION'} <span>{m.rate.toFixed(0)} breaths/min</span></div><div className="stage-scale">01 <i/> 02 <i/> 03 <i/> 04 <i/> 05 <span>REAL-TIME PHYSIOLOGY</span></div></div>;
+import { useEffect, useRef, useState } from 'react';
+import { Box, Focus, Layers3, Maximize2, Move3D, RotateCcw, ScanLine, Wind } from 'lucide-react';
+import type { Metrics, Parameters } from '../model';
+import { airwayProfile, allLayers, layerInfo, regions } from '../anatomy/airway';
+import type { Layer, Region } from '../anatomy/airway';
+import type { AnatomyOptions, AnatomyState, AnatomyView } from '../anatomy/renderer';
+
+export function DigitalTwinLung({ metrics, parameters, phase, paused, region, onRegion }: {
+  metrics: Metrics; parameters: Parameters; phase: number; paused: boolean;
+  region: Region; onRegion: (region: Region) => void;
+}) {
+  const host = useRef<HTMLDivElement>(null);
+  const viewer = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const [view, setView] = useState<AnatomyView>('anatomy');
+  const [layers, setLayers] = useState({ ...allLayers });
+  const [tissue, setTissue] = useState(27);
+  const [ribs, setRibs] = useState(true);
+  const [airflow, setAirflow] = useState(true);
+  const [exploded, setExploded] = useState(false);
+  const [reset, setReset] = useState(0);
+  const [expanded, setExpanded] = useState(false);
+  const options: AnatomyOptions = { view, region, layers, tissue, ribs, airflow, exploded, reset };
+  const state = useRef<AnatomyState>({ metrics, parameters, phase, paused, options });
+  const selectRegion = useRef(onRegion);
+  state.current = { metrics, parameters, phase, paused, options };
+  selectRegion.current = onRegion;
+  const profile = airwayProfile(parameters, region);
+
+  useEffect(() => {
+    let cancelled = false;
+    let dispose: (() => void) | undefined;
+    const element = host.current!;
+    const contextLost = (event: Event) => { event.preventDefault(); setFailed(true); setReady(false); };
+    element.addEventListener('webglcontextlost', contextLost, true);
+    setReady(false); setFailed(false);
+    import('../anatomy/renderer').then(({ createAnatomyRenderer }) => {
+      if (cancelled) return;
+      try {
+        dispose = createAnatomyRenderer(element, () => state.current, value => selectRegion.current(value));
+        setReady(true);
+      } catch { setFailed(true); }
+    }).catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; element.removeEventListener('webglcontextlost', contextLost, true); dispose?.(); };
+  }, [retry]);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') setExpanded(false); };
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', escape);
+    return () => { document.body.style.overflow = oldOverflow; window.removeEventListener('keydown', escape); };
+  }, [expanded]);
+
+  const toggleLayer = (layer: Layer) => setLayers(value => ({ ...value, [layer]: !value[layer] }));
+  return <div className={`anatomy-viewer ${expanded ? 'expanded' : ''}`} ref={viewer} data-phase={phase.toFixed(4)} data-view={view} data-ready={ready}>
+    <div className="anatomy-toolbar">
+      <div className="view-tabs" role="tablist" aria-label="Anatomy views">
+        {([['anatomy', '3D anatomy', Box], ['cutaway', 'Wall cutaway', Layers3], ['endoscopy', 'Inside airway', ScanLine]] as const).map(([key, label, Icon]) =>
+          <button key={key} role="tab" aria-selected={view === key} onClick={() => setView(key)}><Icon size={14}/>{label}</button>)}
+      </div>
+      <button className="icon-button" aria-label={expanded ? 'Close expanded anatomy' : 'Expand anatomy'} onClick={() => setExpanded(value => !value)}><Maximize2 size={15}/></button>
+    </div>
+    <div className="anatomy-selector">
+      <label><Focus size={13}/><span>Inspect</span><select aria-label="Inspect airway region" value={region} onChange={event => onRegion(event.target.value as Region)}>
+        {Object.entries(regions).map(([key, value]) => <option value={key} key={key}>{value.label}</option>)}
+      </select></label>
+      <button className="reset-camera" onClick={() => setReset(value => value + 1)}><RotateCcw size={12}/> Reset view</button>
+    </div>
+    <div className={`anatomy-stage ${view}`}>
+      <div ref={host} className="anatomy-canvas"/>
+      {!ready && !failed && <div className="anatomy-loading"><span className="loading-ring"/>Preparing the anatomical model…</div>}
+      {failed && <div className="anatomy-loading error"><Box size={25}/><strong>3D rendering is unavailable</strong><p>Enable hardware acceleration in your browser. The live layer section below remains available.</p><button onClick={() => setRetry(value => value + 1)}>Retry 3D view</button></div>}
+      <div className="anatomy-top-label"><span className="live-pip"/>{view === 'anatomy' ? 'VOLUMETRIC ANATOMY' : view === 'cutaway' ? 'BRONCHIAL WALL · CUTAWAY' : 'ENDOSCOPIC EXPLORATION'}<small>{view === 'anatomy' ? '1,205 branches · 9 illustrated generations' : regions[region].label}</small></div>
+      {view === 'anatomy' ? <>
+        <div className="anatomy-label right-lung">RIGHT LUNG<small>Upper · middle · lower lobes</small></div>
+        <div className="anatomy-label left-lung">LEFT LUNG<small>Upper · lower lobes</small></div>
+        <div className="anatomy-orientation"><span>R</span><i/><span>L</span></div>
+      </> : <div className="lumen-readout"><span>OPEN LUMEN AREA</span><strong data-testid="lumen-area">{Math.round(profile.area * 100)}<small>%</small></strong><p>Relative to ideal open airway</p><div><i style={{ width: `${Math.min(100, profile.area * 100)}%`, background: metrics.color }}/></div></div>}
+      <div className="anatomy-bottom-label"><span>{paused ? 'PAUSED' : Math.cos(phase) > 0 ? 'INHALATION' : 'EXHALATION'}</span><small>{metrics.rate.toFixed(0)} breaths / min</small><span className="camera-hint"><Move3D size={12}/>{view === 'endoscopy' ? 'View from inside the lumen' : 'Drag to rotate · scroll to zoom'}</span></div>
+    </div>
+    <div className="anatomy-controls">
+      {view === 'anatomy' ? <>
+        <label className="opacity-control">Lung opacity <input type="range" min="0" max="65" value={tissue} aria-label="Lung tissue opacity" onChange={e => setTissue(+e.target.value)}/><span>{tissue}%</span></label>
+        <button className={ribs ? 'on' : ''} aria-pressed={ribs} onClick={() => setRibs(value => !value)}>Rib cage</button>
+      </> : <button className={exploded ? 'on' : ''} disabled={view === 'endoscopy'} aria-pressed={exploded} onClick={() => setExploded(value => !value)}><Layers3 size={12}/> Separate layers</button>}
+      <button className={airflow ? 'on' : ''} aria-pressed={airflow} onClick={() => setAirflow(value => !value)}><Wind size={12}/> Air particles</button>
+    </div>
+    {view !== 'anatomy' && <div className="layer-toggles" aria-label="Visible airway layers">{(Object.keys(layerInfo) as Layer[]).map(layer =>
+      <button key={layer} aria-pressed={layers[layer]} title={layerInfo[layer].description} onClick={() => toggleLayer(layer)}><i style={{ background: layerInfo[layer].color }}/>{layerInfo[layer].label}</button>)}</div>}
+    <div className="anatomy-disclaimer">{region === 'trachea' && view !== 'anatomy' ? 'Cartilage supports the trachea. Asthmatic constriction mainly affects bronchi and bronchioles.' : view === 'cutaway' && exploded ? 'Separated layers exaggerate spacing to reveal the wall structure.' : 'Illustrative anatomy · representative branching, not a patient scan or a complete microscopic airway tree.'}</div>
+  </div>;
 }

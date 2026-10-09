@@ -1,6 +1,6 @@
 # ASTHMA DIGITAL TWIN
 
-Real-Time Respiratory System Simulation. An interactive educational prototype built with React, TypeScript, Vite, animated SVG anatomy and Recharts. Runs entirely in the browser; no backend, credentials or paid API.
+Real-Time Respiratory System Simulation. An interactive educational prototype built with React, TypeScript, Vite, interactive Three.js anatomy and Recharts. Runs entirely in the browser; no backend, credentials or paid API.
 
 ## Run
 
@@ -15,13 +15,13 @@ The development server listens on port 5173. `npm run build` creates `dist/`; `n
 
 ## Demonstration
 
-Start Healthy, select a scenario or adjust the sliders, then trigger an attack. All metrics, airway diameter, wall thickness, mucus, airflow particles, charts and rule-based assessment share one physiology model. Administer Bronchodilator starts an illustrative recovery transition. Each transition lasts eight real seconds and represents twenty simulated minutes. The timeline lets you inspect that transition; Pause freezes the simulation clock and breathing, and Reset clears telemetry and restores baseline.
+Start Healthy, select a scenario or adjust the sliders, then trigger an attack. All metrics, airway diameter, wall thickness, mucus, airflow particles, charts and rule-based assessment share one physiology model. Administer Bronchodilator starts an illustrative recovery transition. Each transition uses elapsed time rather than frame count, so low frame rates do not slow the physiology. Hidden tabs suspend the simulation. Each transition lasts eight real seconds and represents twenty simulated minutes. The timeline lets you inspect that transition; Pause freezes the simulation clock, breathing and airflow particles, and Reset clears telemetry and restores baseline.
 
 ## Model and limitations
 
 A weighted burden combines constriction, inflammation, mucus, activity and exposure. Relative radius determines resistance using `1/radius^4`, capped at 24×. Normalized airflow decreases with burden, while saturation decreases at higher burden. The respiratory-rate slider sets the base rate; compensatory response and activity can raise the displayed rate, capped at 35/min. Baseline diameter is normalized to the healthy demo twin. Charts retain the last sixty active simulation seconds; airflow oscillates with the breathing cycle.
 
-This is a simplified single-compartment visual model, not a validated physiological predictor. Patient DT-001 is fictional. Oxygen, peak flow, severity, thresholds and confidence are illustrative. The AI panel is a transparent rule-based demonstration, not an ML service. Bronchodilator is a simulated parameter transition, with no drug or dose recommendation. Never use this prototype for diagnosis or treatment. An SVG anatomical illustration is used rather than a clinical 3D reconstruction.
+This is a simplified single-compartment visual model, not a validated physiological predictor. Patient DT-001 is fictional. Oxygen, peak flow, severity, thresholds and confidence are illustrative. The AI panel is a transparent rule-based demonstration, not an ML service. Bronchodilator is a simulated parameter transition, with no drug or dose recommendation. Never use this prototype for diagnosis or treatment. The 3D anatomy is a procedural educational illustration, not a clinical reconstruction. It shows 1,205 representative branches across nine generations; real lungs contain far more microscopic airways and patient-specific variation.
 
 Fonts are bundled locally. No runtime network service is needed, and no patient data leaves the browser.
 
@@ -43,3 +43,18 @@ TEST_URL=http://127.0.0.1:4173/databees_projects_healthcare/ npm run test:browse
 ```
 
 Publishing makes the demonstration accessible to visitors. If Pages is unavailable for this repository, check repository visibility and GitHub plan support in Settings → Pages.
+
+
+## Explore the anatomy (v2)
+
+- **3D anatomy:** drag to rotate, scroll to zoom, or focus the canvas and use arrow keys / + / −. Change lung opacity, toggle the rib cage and air particles, or use Reset view. On touch screens, drag with one finger and pinch to zoom.
+- **Inspect:** select a lobar bronchus, a small bronchiole or the cartilage-supported trachea. Cyan points in the main model select the five lobar regions.
+- **Wall cutaway:** inspect connective tissue, smooth muscle, submucosa, folded epithelium and an uneven mucus film. Each layer can be hidden; Separate layers spreads them apart for explanation.
+- **Inside airway:** look down the selected lumen. Mucus occupies space and narrows the opening, inflammation thickens submucosa and contraction tightens the wall. The larger transverse sections below use the same layer geometry and show healthy versus current open area.
+- **Expand:** enlarges the viewer; Escape closes it.
+
+The full tree uses a normalized average radius; the local wall illustration adds circumferential folds and irregular mucus thickness. The area readout integrates the local radial profile, so it is not the same as the linear airflow score. Tracheal contraction is attenuated to illustrate its supporting cartilage. Layer dimensions, microscopic textures and generation layout are illustrative and not reconstructed from a person's scan. This is not a complete histology or airway atlas.
+
+3D needs WebGL 2 / browser hardware acceleration. If unavailable, the live SVG layer comparison and all simulation controls continue to work. No remote model downloads or paid APIs are used. Geometry, tissue textures and fonts are generated or bundled locally.
+
+`npm test` runs ten physiology and anatomy tests. `npm run test:anatomy` exercises the 3D view, actual canvas changes, mucus geometry, layer visibility, region selection and mobile layout. Both browser scripts accept `TEST_URL` and `CHROMIUM_PATH`. Headless Chromium uses its software WebGL renderer for validation.

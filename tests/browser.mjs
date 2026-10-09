@@ -1,12 +1,12 @@
 import { chromium, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
-const browser = await chromium.launch({executablePath:process.env.CHROMIUM_PATH || '/usr/bin/chromium',headless:true,args:['--no-sandbox']});
+const browser = await chromium.launch({executablePath:process.env.CHROMIUM_PATH || '/usr/bin/chromium',headless:true,args:['--no-sandbox','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const page = await browser.newPage({viewport:{width:1440,height:1100},deviceScaleFactor:1});
 const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const url=process.env.TEST_URL || 'http://127.0.0.1:5173';
 await mkdir('/tmp/asthma-validation',{recursive:true});
 try {
- await page.goto(url);await expect(page.getByRole('heading',{name:'Patient Respiratory Digital Twin'})).toBeVisible();
+ await page.goto(url);await expect(page.locator('.anatomy-viewer')).toHaveAttribute('data-ready','true',{timeout:30000});await expect(page.getByRole('heading',{name:'Patient Respiratory Digital Twin'})).toBeVisible();
  const airflow=()=>page.locator('.vital').filter({has:page.locator(':scope > span',{hasText:/^Airflow$/})}).locator('strong');
  await expect(airflow()).toHaveText('100%');
  await page.screenshot({path:'/tmp/asthma-validation/healthy-desktop.png',fullPage:true});
@@ -22,16 +22,16 @@ try {
  await page.getByRole('button',{name:'Reset simulation'}).click();
  await page.getByRole('button',{name:'Trigger Asthma Attack'}).click();
  await expect(airflow()).not.toHaveText('100%');
- await expect(page.getByRole('heading',{name:'HIGH-RISK RESPIRATORY PATTERN'})).toBeVisible({timeout:12000});
+ await expect(page.getByRole('heading',{name:'HIGH-RISK RESPIRATORY PATTERN'})).toBeVisible({timeout:30000});
  await page.getByRole('button',{name:'Administer Bronchodilator'}).click();
- await expect(airflow()).toHaveText('100%',{timeout:12000});
+ await expect(airflow()).toHaveText('100%',{timeout:30000});
  await expect(page.getByRole('heading',{name:'NORMAL',exact:true})).toBeVisible();
  await page.getByRole('slider',{name:'Simulation timeline'}).fill('0');await page.getByRole('slider',{name:'Simulation timeline'}).dispatchEvent('input');
  await expect(page.getByRole('heading',{name:'HIGH-RISK RESPIRATORY PATTERN'})).toBeVisible();
  await page.getByRole('button',{name:'Pause simulation'}).click();
- const pausedSamples=await page.locator('.lung-svg').evaluate(svg=>svg.getCurrentTime());
+ const pausedSamples=await page.locator('.anatomy-viewer').getAttribute('data-phase');
  await page.waitForTimeout(600);
- expect(await page.locator('.lung-svg').evaluate(svg=>svg.getCurrentTime())).toBeCloseTo(pausedSamples,1);
+ expect(await page.locator('.anatomy-viewer').getAttribute('data-phase')).toBe(pausedSamples);
  await page.getByRole('button',{name:'Resume simulation'}).click();
  await page.getByRole('button',{name:'Reset simulation'}).click();
  await expect(airflow()).toHaveText('100%');
@@ -40,5 +40,5 @@ try {
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/asthma-validation/healthy-mobile.png',fullPage:true});
  const dimensions=await page.evaluate(()=>({scroll:document.documentElement.scrollWidth,width:innerWidth}));expect(dimensions.scroll).toBeLessThanOrEqual(dimensions.width);
  expect(errors).toEqual([]);
- console.log('PASS: initial demo, severe scenario, sliders, selectors, animated attack and recovery, timeline, SVG pause/resume, reset, three telemetry traces, explanation, mobile overflow, no page errors.');
+ console.log('PASS: initial demo, severe scenario, sliders, selectors, animated attack and recovery, timeline, 3D simulation pause/resume, reset, three telemetry traces, explanation, mobile overflow, no page errors.');
 } finally { await browser.close(); }
