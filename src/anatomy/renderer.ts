@@ -5,12 +5,13 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { airwayProfile, layerInfo } from './airway';
 import type { Layer, LayerVisibility, Region, AirwayProfile } from './airway';
 import { createBronchialTree, lobeAnchors } from './tree';
+import { humanEnvelope, envelopeMaterial } from './body';
 import type { Parameters, Metrics } from '../model';
 
 export type AnatomyView = 'anatomy' | 'cutaway' | 'endoscopy';
 export type AnatomyOptions = {
   view: AnatomyView; region: Region; layers: LayerVisibility;
-  tissue: number; ribs: boolean; airflow: boolean; exploded: boolean; reset: number;
+  tissue: number; framing: 'body' | 'lungs'; ribs: boolean; airflow: boolean; exploded: boolean; reset: number;
 };
 export type AnatomyState = { parameters: Parameters; metrics: Metrics; phase: number; paused: boolean; options: AnatomyOptions };
 type RadialFunction = (theta: number, z: number) => number;
@@ -66,6 +67,39 @@ function tissueTexture() {
   const texture=new THREE.CanvasTexture(canvas);texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
   texture.colorSpace=THREE.SRGBColorSpace;return texture;
 }
+function pleuralTexture() {
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=512;
+  const ctx=canvas.getContext('2d')!;
+  let seed=8147;const random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+  ctx.fillStyle='#e6bec1';ctx.fillRect(0,0,512,512);
+  // Irregular subpleural lobules give the surface scale without a tiled photograph.
+  const spacing=22;
+  const points:Array<Array<[number,number]>>=[];
+  for(let row=-1;row<26;row++) {
+    const cells:Array<[number,number]>=[];
+    for(let col=-1;col<26;col++) cells.push([col*spacing+(row%2)*11+(random()-.5)*12,row*spacing+(random()-.5)*12]);
+    points.push(cells);
+  }
+  for(let row=0;row<26;row++) for(let col=0;col<26;col++) {
+    const a=points[row][col],b=points[row][col+1],c=points[row+1][col+1],d=points[row+1][col];
+    ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.lineTo(...c);ctx.lineTo(...d);ctx.closePath();
+    ctx.fillStyle=`rgba(138,73,92,${.025+random()*.1})`;ctx.fill();
+    ctx.strokeStyle='rgba(112,67,86,.13)';ctx.lineWidth=.6;ctx.stroke();
+  }
+  for(let i=0;i<18000;i++) {
+    ctx.fillStyle=random()>.5?'rgba(255,239,227,.16)':'rgba(111,52,69,.07)';
+    ctx.fillRect(random()*512,random()*512,.5+random()*1.2,.5+random()*1.2);
+  }
+  const vessel=(x:number,y:number,angle:number,length:number,depth:number)=>{
+    const endX=x+Math.cos(angle)*length,endY=y+Math.sin(angle)*length;
+    ctx.beginPath();ctx.moveTo(x,y);ctx.quadraticCurveTo((x+endX)/2+6,(y+endY)/2-4,endX,endY);
+    ctx.strokeStyle=`rgba(136,65,89,${.08+depth*.025})`;ctx.lineWidth=.15+depth*.16;ctx.stroke();
+    if(depth>0) {vessel(endX,endY,angle-.45,length*.65,depth-1);vessel(endX,endY,angle+.6,length*.64,depth-1);}
+  };
+  for(let i=0;i<9;i++) vessel(random()*512,random()*512,random()*TAU,30+random()*20,3);
+  const map=new THREE.CanvasTexture(canvas);map.wrapS=map.wrapT=THREE.RepeatWrapping;map.colorSpace=THREE.SRGBColorSpace;
+  map.anisotropy=4;return map;
+}
 function lungGeometry(side:number) {
   const geometry=new THREE.SphereGeometry(1,64,56);
   const position=geometry.getAttribute('position');
@@ -74,18 +108,20 @@ function lungGeometry(side:number) {
     const x=position.getX(i),y=position.getY(i),z=position.getZ(i);
     const v=(1-y)/2;
     const radial=Math.sqrt(x*x+z*z);
-    const breadth=Math.pow(Math.sin(v*Math.PI),.52)*(1.02+.18*v);
+    const breadth=Math.pow(Math.sin(v*Math.PI),.55)*(1.15+.4*v);
     const inward=x*side<0;
-    const cardiac=side>0&&inward?.24*Math.exp(-(((y+.15)*2.3)**2)):0;
+    const cardiac=side>0&&inward?.36*Math.exp(-(((y+.05)*2.3)**2)):0;
     const texture=1+.015*Math.sin(x*23+z*17)*Math.cos(y*31);
-    const nx=side*(1.38+.12*Math.sin(v*Math.PI))+(radial>.001?x/radial:0)*breadth*(1-cardiac);
-    const ny=2.6-4.9*Math.sin(v*Math.PI/2);
-    const nz=(radial>.001?z/radial:0)*breadth*.78*texture+.05;
-    position.setXYZ(i,nx,ny,nz);
-    const oblique=ny-(-.55+.55*nz+.16*Math.abs(nx));
+    let nx=side*(1.38+.1*v)+(radial>.001?x/radial:0)*breadth*(inward?.84-cardiac:1);
+    const ny=Math.max(2.6-4.9*v, -2.17+.16*radial*radial);
+    let nz=(radial>.001?z/radial:0)*breadth*.78*texture+.05;
+    const oblique=ny-(-.9-nz+.45*Math.abs(nx));
     const upper=ny>.42&&oblique>0;
-    const color=new THREE.Color(upper?0xc88792:side<0&&oblique>0?0xb67588:0xa36680);
+    const color=new THREE.Color(upper?0xeaa3a2:side<0&&oblique>0?0xd58c95:0xc67b8e);
     const crease=Math.min(Math.abs(oblique),side<0&&oblique>0?Math.abs(ny-.42):10);
+    const groove=Math.exp(-crease*crease/.0025)*.025;
+    nx=side*1.47+(nx-side*1.47)*(1-groove);nz*=1-groove;
+    position.setXYZ(i,nx,ny,nz);
     color.multiplyScalar(.84+.16*Math.min(1,crease*28));colors.set(color.toArray(),i*3);
   }
   geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
@@ -99,7 +135,7 @@ export function createAnatomyRenderer(host: HTMLDivElement, getState: () => Anat
   const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true,powerPreference:'high-performance'});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.6));
   renderer.setClearColor(0x08131e,0);renderer.outputColorSpace=THREE.SRGBColorSpace;
-  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.9;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.12;
   renderer.domElement.setAttribute('aria-label','Interactive three-dimensional respiratory anatomy');
   renderer.domElement.setAttribute('role','img');renderer.domElement.tabIndex=0;
   host.appendChild(renderer.domElement);
@@ -113,28 +149,52 @@ export function createAnatomyRenderer(host: HTMLDivElement, getState: () => Anat
   const pmrem=new THREE.PMREMGenerator(renderer);
   const environment=new RoomEnvironment();
   const environmentMap=pmrem.fromScene(environment,.04);
-  scene.environment=environmentMap.texture;scene.environmentIntensity=.55;environment.dispose();pmrem.dispose();
+  scene.environment=environmentMap.texture;scene.environmentIntensity=.75;environment.dispose();pmrem.dispose();
   scene.add(new THREE.HemisphereLight(0xd4e9ff,0x2d1629,.85));
   const key=new THREE.DirectionalLight(0xffe5da,2.5);key.position.set(-4,7,8);scene.add(key);
-  const rim=new THREE.DirectionalLight(0x62b6ea,2);rim.position.set(4,3,-4);scene.add(rim);
+  const rim=new THREE.DirectionalLight(0xa694ff,2.8);rim.position.set(4,3,-4);scene.add(rim);
   const fill=new THREE.DirectionalLight(0xc1edff,.6);fill.position.set(0,-3,6);scene.add(fill);
   const anatomy=new THREE.Group(), inspection=new THREE.Group();scene.add(anatomy,inspection);
-  const texture=tissueTexture();
-  const tissueMaterial=new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,roughness:.57,metalness:0,transparent:true,opacity:.18,depthWrite:false,map:texture,bumpMap:texture,bumpScale:.065,side:THREE.FrontSide,clearcoat:.15});
+  const texture=tissueTexture(),pleura=pleuralTexture();
+  const tissueMaterial=new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,roughness:.42,metalness:0,transparent:true,opacity:.48,depthWrite:false,map:pleura,bumpMap:pleura,bumpScale:.07,side:THREE.FrontSide,clearcoat:.32,sheen:.35,sheenColor:0xf5b1ac});
   const lungShells=new THREE.Group();
-  for(const side of [-1,1]) lungShells.add(new THREE.Mesh(lungGeometry(side),tissueMaterial));
+  for(const side of [-1,1]) {const shell=new THREE.Mesh(lungGeometry(side),tissueMaterial);shell.renderOrder=4;lungShells.add(shell);}
   anatomy.add(lungShells);
-  const fissureMaterial=new THREE.MeshBasicMaterial({color:0x94b6c8,transparent:true,opacity:.19,depthWrite:false});
+  const fissureMaterial=new THREE.MeshBasicMaterial({color:0x7b405b,transparent:true,opacity:.6,depthWrite:false});
+  // Rear fissures should not read as dark rings through the translucent lung.
+  fissureMaterial.onBeforeCompile=shader=>{
+    shader.vertexShader='varying vec3 vPleuralNormal; varying vec3 vPleuralEye;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',`#include <project_vertex>
+      vec3 surfaceNormal=normalize(vec3((position.x-sign(position.x)*1.47)/1.6,0.0,position.z-.05));
+      vPleuralNormal=normalMatrix*surfaceNormal; vPleuralEye=-mvPosition.xyz;`);
+    shader.fragmentShader='varying vec3 vPleuralNormal; varying vec3 vPleuralEye;\n'+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+      diffuseColor.a*=smoothstep(0.0,.35,dot(normalize(vPleuralNormal),normalize(vPleuralEye)));`);
+  };
   const fissures=new THREE.Group();anatomy.add(fissures);
   for(const side of [-1,1]) {
-    const points=[];
-    for(let i=0;i<=28;i++) {
-      const u=i/28, x=side*(.55+1.92*u), y=-.7+.85*u;
-      const local=(Math.abs(x)-1.47)/1.2;
-      points.push(new THREE.Vector3(x,y,.1+.81*Math.sqrt(Math.max(.03,1-local*local-(y/2.44)**2))));
+    const surface=(theta:number,v:number)=>{
+      const y=1-v*2,radial=Math.sin(v*Math.PI);
+      const breadth=Math.pow(radial,.55)*(1.15+.4*v);
+      const inward=Math.cos(theta)*side<0;
+      const cardiac=side>0&&inward?.36*Math.exp(-(((y+.05)*2.3)**2)):0;
+      const x=side*(1.38+.1*v)+Math.cos(theta)*breadth*(inward?.84-cardiac:1);
+      return new THREE.Vector3(x,Math.max(2.6-4.9*v,-2.17+.16*radial*radial),Math.sin(theta)*breadth*.78+.05);
+    };
+    for(const horizontal of side<0?[false,true]:[false]) {
+      const points:THREE.Vector3[]=[];
+      for(let i=0;i<=100;i++) {
+        const theta=horizontal?-.12+i/100*(Math.PI+.24):i/100*TAU;
+        let lo=.1,hi=.9;
+        for(let k=0;k<18;k++) {
+          const v=(lo+hi)/2,p=surface(theta,v);
+          const plane=horizontal?.42:-.9-p.z+.45*Math.abs(p.x);
+          if(p.y>plane)lo=v;else hi=v;
+        }
+        points.push(surface(theta,(lo+hi)/2));
+      }
+      const fissure=lineCurve(points,.009,fissureMaterial,100);fissure.renderOrder=5;fissures.add(fissure);
     }
-    fissures.add(lineCurve(points,.009,fissureMaterial));
-    if(side<0) fissures.add(lineCurve([new THREE.Vector3(-.58,.35,.57),new THREE.Vector3(-1.4,.45,.9),new THREE.Vector3(-2.45,.28,.43)],.009,fissureMaterial));
   }
 
   // A merged centerline attribute lets every airway narrow without reallocating its mesh.
@@ -155,7 +215,7 @@ export function createAnatomyRenderer(host: HTMLDivElement, getState: () => Anat
   const treeGeometry=mergeGeometries(tubeGeometries)!;tubeGeometries.forEach(g=>g.dispose());
   const wallUniform={value:0}, lumenUniform={value:0};
   const airwayMaterial=(lumen:boolean)=>{
-    const mat=new THREE.MeshPhysicalMaterial({color:lumen?0x673637:0xe6b29e,roughness:lumen?.28:.42,metalness:0,transparent:!lumen,opacity:lumen?1:.32,depthWrite:lumen,clearcoat:.25,side:THREE.FrontSide});
+    const mat=new THREE.MeshPhysicalMaterial({color:lumen?0x9f625f:0xd6a597,roughness:lumen?.28:.42,metalness:0,transparent:!lumen,opacity:lumen?1:.38,depthWrite:lumen,clearcoat:.25,side:THREE.FrontSide});
     mat.onBeforeCompile=shader=>{
       shader.uniforms.obstruction=lumen?lumenUniform:wallUniform;
       shader.vertexShader='attribute vec3 centerline; attribute float sensitivity; uniform float obstruction;\n'+shader.vertexShader;
@@ -172,27 +232,38 @@ export function createAnatomyRenderer(host: HTMLDivElement, getState: () => Anat
     const ring=new THREE.Mesh(new THREE.TorusGeometry(.196,.022,6,28,Math.PI*1.65),cartilageMaterial);
     ring.rotation.x=Math.PI/2;ring.rotation.z=.58;ring.position.set(0,1.84+i*.115,-.035);cartilage.add(ring);
   }
+  const bronchialRings=new THREE.Group();anatomy.add(bronchialRings);
+  const axis=new THREE.Vector3(0,0,1);
+  for(const branch of tree.filter(branch=>branch.generation===1||branch.generation===2)) {
+    const count=Math.max(3,Math.round(branch.curve.getLength()/.12));
+    for(let j=1;j<count;j++) {
+      const t=j/count;
+      const ring=new THREE.Mesh(new THREE.TorusGeometry(branch.radius*(1-.22*t)*1.08,.012,5,20,Math.PI*1.55),cartilageMaterial);
+      ring.position.copy(branch.curve.getPointAt(t));
+      ring.quaternion.setFromUnitVectors(axis,branch.curve.getTangentAt(t));
+      bronchialRings.add(ring);
+    }
+  }
   const larynx=new THREE.Mesh(new THREE.CylinderGeometry(.26,.2,.45,12,1,true),new THREE.MeshStandardMaterial({color:0x88a6b8,roughness:.6,transparent:true,opacity:.35,side:THREE.DoubleSide}));
   larynx.position.set(0,3.9,-.015);anatomy.add(larynx);
 
   const ribs=new THREE.Group();anatomy.add(ribs);
-  const boneMaterial=new THREE.MeshStandardMaterial({color:0x99bac9,roughness:.7,transparent:true,opacity:.085,depthWrite:false});
+  const boneMaterial=new THREE.MeshStandardMaterial({color:0x99bac9,roughness:.7,transparent:true,opacity:.13,depthWrite:false});
   for(let j=0;j<9;j++) for(const side of [-1,1]) {
     const y=2.0-j*.47,width=2.5+Math.sin(j/9*Math.PI)*.25;
     const points=[new THREE.Vector3(side*.13,y-.13,.99),new THREE.Vector3(side*1.3,y-.3,1.1),new THREE.Vector3(side*width,y+.04,.25),new THREE.Vector3(side*2.0,y+.22,-.88),new THREE.Vector3(side*.3,y+.24,-1.0)];
     ribs.add(lineCurve(points,.042,boneMaterial));
   }
   for(const side of [-1,1]) ribs.add(lineCurve([new THREE.Vector3(side*.05,2.8,.5),new THREE.Vector3(side*.9,2.83,.56),new THREE.Vector3(side*2.12,2.55,.1)],.067,boneMaterial));
-  const thoraxProfile=[new THREE.Vector2(1.9,-3.0),new THREE.Vector2(2.3,-2.4),new THREE.Vector2(2.72,-.5),new THREE.Vector2(2.82,1.3),new THREE.Vector2(2.84,2.25),new THREE.Vector2(2.5,2.6),new THREE.Vector2(1.4,3.05),new THREE.Vector2(.5,3.35),new THREE.Vector2(.43,4.2)];
-  const thorax=new THREE.Mesh(new THREE.LatheGeometry(thoraxProfile,56),new THREE.MeshPhysicalMaterial({color:0x477c9b,transparent:true,opacity:.055,roughness:.4,depthWrite:false,side:THREE.FrontSide}));thorax.scale.z=.43;ribs.add(thorax);
+  const body=new THREE.Mesh(humanEnvelope(),envelopeMaterial());body.renderOrder=6;scene.add(body);
   const sternum=new THREE.Mesh(new THREE.CapsuleGeometry(.09,2.25,5,8),boneMaterial);sternum.position.set(0,.87,1.07);ribs.add(sternum);
   const spine=new THREE.Mesh(new THREE.CylinderGeometry(.11,.13,5.5,8),boneMaterial);spine.position.set(0,.35,-1);ribs.add(spine);
   const diaphragm=new THREE.Mesh(new THREE.SphereGeometry(1,36,16,0,TAU,0,Math.PI/2),new THREE.MeshStandardMaterial({color:0xa67187,roughness:.6,transparent:true,opacity:.14,depthWrite:false,side:THREE.DoubleSide}));
   diaphragm.scale.set(2.63,.53,.95);diaphragm.position.set(0,-2.7,0);anatomy.add(diaphragm);
 
-  const markerMaterial=new THREE.MeshBasicMaterial({color:0x8fe5f5});
+  const markerMaterial=new THREE.MeshBasicMaterial({color:0xe2c9ff,depthTest:false});
   const markerGeometry=new THREE.SphereGeometry(.066,12,8);const markers:THREE.Mesh[]=[];
-  lobeAnchors.forEach(lobe=>{const dot=new THREE.Mesh(markerGeometry,markerMaterial);dot.position.copy(lobe.point);dot.position.z+=.18;dot.userData.region=lobe.region;anatomy.add(dot);markers.push(dot);});
+  lobeAnchors.forEach(lobe=>{const dot=new THREE.Mesh(markerGeometry,markerMaterial);dot.renderOrder=7;dot.position.copy(lobe.point);dot.position.z+=.18;dot.userData.region=lobe.region;anatomy.add(dot);markers.push(dot);});
   const selection=new THREE.Mesh(new THREE.TorusGeometry(.16,.008,6,32),new THREE.MeshBasicMaterial({color:0xb5efff,transparent:true,opacity:.8}));anatomy.add(selection);
 
   const spriteCanvas=document.createElement('canvas');spriteCanvas.width=64;spriteCanvas.height=64;
@@ -253,7 +324,7 @@ export function createAnatomyRenderer(host: HTMLDivElement, getState: () => Anat
   const resize=()=>{sizeDirty=true;const width=Math.max(1,host.clientWidth),height=Math.max(1,host.clientHeight);renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();};
   const observer=new ResizeObserver(resize);observer.observe(host);resize();
   const visibilityObserver=new IntersectionObserver(([entry])=>{inViewport=entry.isIntersecting;sizeDirty=true;});visibilityObserver.observe(host);
-  let lastView:AnatomyView|null=null,lastReset=-1,lastShape='',lastParams='',lastPhase=getState().phase;
+  let lastFraming='',lastView:AnatomyView|null=null,lastReset=-1,lastShape='',lastParams='',lastPhase=getState().phase;
   const updateInspection=(profile:AirwayProfile,options:AnatomyOptions)=>{
     const cut=options.view!=='endoscopy';const separated=options.exploded&&cut;
     const boundaries:Record<Layer,[RadialFunction,RadialFunction]>={
@@ -282,22 +353,22 @@ export function createAnatomyRenderer(host: HTMLDivElement, getState: () => Anat
     lastRenderedPhase=phase;lastRenderKey=renderKey;sizeDirty=false;
     const deltaPhase=Math.max(0,phase-lastPhase);lastPhase=phase;
     flowTime+=deltaPhase*(.15+m.airflow/110);
-    if(o.view!==lastView||o.reset!==lastReset) {
+    if(o.view!==lastView||o.reset!==lastReset||o.framing!==lastFraming) {
       const narrow=camera.aspect<.8;
-      if(o.view==='anatomy') {camera.position.set(1.1,1.05, narrow?14.5:12.2);controls.target.set(0,.6,0);controls.minDistance=5;controls.maxDistance=18;}
+      if(o.view==='anatomy') {const focused=o.framing==='lungs';camera.position.set(focused?1.6:.65,focused?1.1:1.6,focused?(narrow?15:12.5):(narrow?23:20.5));controls.target.set(0,focused?.5:.9,0);controls.minDistance=5;controls.maxDistance=28;}
       else if(o.view==='cutaway') {camera.position.set(3.2,2.6,narrow?8.3:5.9);controls.target.set(0,0,0);controls.minDistance=4;controls.maxDistance=14;}
       else {camera.position.set(.015,.015,1.5);controls.target.set(0,0,-2);controls.minDistance=3.3;controls.maxDistance=5;}
-      controls.enableRotate=o.view!=='endoscopy';controls.enableZoom=o.view!=='endoscopy';controls.update();lastView=o.view;lastReset=o.reset;
+      controls.enableRotate=o.view!=='endoscopy';controls.enableZoom=o.view!=='endoscopy';controls.update();lastView=o.view;lastReset=o.reset;lastFraming=o.framing;
     }
-    anatomy.visible=o.view==='anatomy';inspection.visible=!anatomy.visible;
+    anatomy.visible=o.view==='anatomy';body.visible=anatomy.visible;inspection.visible=!anatomy.visible;
     const expansion=1+Math.sin(phase)*.022*m.airflow/100;
     anatomy.scale.set(expansion,1+(expansion-1)*.7,expansion);
     diaphragm.position.y=-2.64-Math.sin(phase)*.13*m.airflow/100;
     tissueMaterial.opacity=o.tissue/100;lungShells.visible=o.tissue>0;fissures.visible=o.tissue>0;ribs.visible=o.ribs;
     wallUniform.value=p.constriction*.0048;
     lumenUniform.value=1-m.radius;
-    wallMaterial.color.set(0xe6b29e).lerp(new THREE.Color(0xc56665),p.inflammation/150);
-    lumenMaterial.color.set(0x70403e).lerp(new THREE.Color(0x844626),p.mucus/140);
+    wallMaterial.color.set(0xd6a597).lerp(new THREE.Color(0xc56665),p.inflammation/150);
+    lumenMaterial.color.set(0x9f625f).lerp(new THREE.Color(0x844626),p.mucus/140);
     const lobe=lobeAnchors.find(a=>a.region===o.region);
     selection.visible=!!lobe&&anatomy.visible;if(lobe){selection.position.copy(lobe.point);selection.position.z+=.22;selection.quaternion.copy(camera.quaternion);}
     const paramsKey=[p.constriction,p.inflammation,p.mucus,p.activity,p.allergen].map(v=>v.toFixed(1)).join(',');
@@ -344,6 +415,6 @@ export function createAnatomyRenderer(host: HTMLDivElement, getState: () => Anat
     renderer.domElement.removeEventListener('pointerdown',pointerDown);renderer.domElement.removeEventListener('pointerup',pointerUp);renderer.domElement.removeEventListener('keydown',keyDown);
     const geometries=new Set<THREE.BufferGeometry>(),materials=new Set<THREE.Material>();
     scene.traverse(object=>{if(object instanceof THREE.Mesh||object instanceof THREE.Points){geometries.add(object.geometry);const mats=Array.isArray(object.material)?object.material:[object.material];mats.forEach(m=>materials.add(m));}});
-    geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());texture.dispose();spriteTexture.dispose();environmentMap.dispose();renderer.dispose();renderer.forceContextLoss();renderer.domElement.remove();
+    geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());texture.dispose();pleura.dispose();spriteTexture.dispose();environmentMap.dispose();renderer.dispose();renderer.forceContextLoss();renderer.domElement.remove();
   };
 }

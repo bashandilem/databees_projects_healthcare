@@ -57,4 +57,12 @@ The full tree uses a normalized average radius; the local wall illustration adds
 
 3D needs WebGL 2 / browser hardware acceleration. If unavailable, the live SVG layer comparison and all simulation controls continue to work. No remote model downloads or paid APIs are used. Geometry, tissue textures and fonts are generated or bundled locally.
 
-`npm test` runs ten physiology and anatomy tests. `npm run test:anatomy` exercises the 3D view, actual canvas changes, mucus geometry, layer visibility, region selection and mobile layout. Both browser scripts accept `TEST_URL` and `CHROMIUM_PATH`. Headless Chromium uses its software WebGL renderer for validation.
+`npm test` runs eleven physiology, anatomy and body-surface tests. `npm run test:anatomy` exercises the 3D view, actual canvas changes, mucus geometry, layer visibility, region selection and mobile layout. Both browser scripts accept `TEST_URL` and `CHROMIUM_PATH`. Headless Chromium uses its software WebGL renderer for validation.
+
+## Respiratory studio (v3)
+
+The default atlas places the breathing lungs inside a continuous, translucent human upper body. The body is an implicit surface with connected shoulders, arms, neck and head; rim lighting keeps the organ model visible. The lungs use asymmetric contours, a left cardiac indentation, surface-aligned fissures, a procedural pleural microtexture and cartilage-supported central airways. Lung tissue moves with respiration while the surrounding body stays stable.
+
+Use **Human context** for the torso overview or **Focus lungs** for a closer inspection. **Tissue detail** emphasizes the lung surface; **Bronchial tree** reduces tissue opacity to expose branching. These presets share the existing opacity slider and do not change simulation inputs. Rotation, zoom, layer inspection, endoscopy and region selection remain available. The studio uses a graphite/lavender interface and adapts to mobile screens.
+
+Rendering uses Three.js/WebGL in the browser. It is a procedural educational model, not a Unity build or patient-derived clinical twin. No remote assets or services are required. The anatomy browser test covers both camera framings and tissue presets; the body geometry test verifies a single connected, closed surface.

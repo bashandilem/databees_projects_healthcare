@@ -15,6 +15,19 @@ try {
   await expect(page.locator('.anatomy-viewer')).toHaveAttribute('data-ready', 'true', { timeout: 30000 });
   await page.getByRole('button', { name: 'Pause simulation', exact: true }).click();
   await expect(canvas).toBeVisible();
+  await expect(page.locator('.anatomy-viewer')).toHaveAttribute('data-framing', 'body');
+  const bodyView = await shot();
+  await page.getByRole('button', { name: 'Focus lungs', exact: true }).click();
+  await expect(page.locator('.anatomy-viewer')).toHaveAttribute('data-framing', 'lungs');
+  expect(await shot()).not.toBe(bodyView);
+  await page.getByRole('button', { name: 'Bronchial tree', exact: true }).click();
+  await expect(page.getByRole('slider', { name: 'Lung tissue opacity' })).toHaveValue('18');
+  const treeView = await shot();
+  await page.getByRole('button', { name: 'Tissue detail', exact: true }).click();
+  await expect(page.getByRole('slider', { name: 'Lung tissue opacity' })).toHaveValue('82');
+  expect(await shot()).not.toBe(treeView);
+  await page.locator('.anatomy-stage').screenshot({ path: '/tmp/asthma-validation/lung-detail.png' });
+  await page.getByRole('button', { name: 'Human context', exact: true }).click();
   const front = await shot();
   await canvas.focus(); await page.keyboard.press('ArrowRight');
   await page.waitForTimeout(350);
@@ -64,5 +77,5 @@ try {
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.locator('.twin-panel').screenshot({ path: '/tmp/asthma-validation/anatomy-mobile.png' });
   expect(errors).toEqual([]);
-  console.log('PASS: rendered 3D anatomy, camera rotation, opacity and rib toggles, mucus-driven lumen geometry, 3D layer visibility, separated layers, region sensitivity, endoscopy, expanded view and mobile layout; no WebGL or JavaScript errors.');
+  console.log('PASS: human context, lung focus, tissue/tree presentation, rendered 3D anatomy, camera rotation, opacity and rib toggles, mucus-driven lumen geometry, 3D layer visibility, separated layers, region sensitivity, endoscopy, expanded view and mobile layout; no WebGL or JavaScript errors.');
 } finally { await browser.close(); }

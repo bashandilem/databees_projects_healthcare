@@ -28,23 +28,25 @@ export function createBronchialTree(): AirwayBranch[] {
     const axis = new THREE.Vector3(Math.cos(seed*2.3), .35, Math.sin(seed*2.3)).normalize();
     const perpendicular = new THREE.Vector3().crossVectors(direction,axis).normalize();
     for(let j=0;j<2;j++) {
-      const length = .45*Math.pow(.76,generation-3);
+      const length = .32*Math.pow(.72,generation-3);
       const d = direction.clone().multiplyScalar(.65).addScaledVector(perpendicular,j===0?.62:-.62).normalize();
       const target = end.clone().addScaledVector(d,length);
       target.y=THREE.MathUtils.clamp(target.y,-2.16,2.22);
-      const v=Math.asin(THREE.MathUtils.clamp((2.6-target.y)/4.9,0,1))*2/Math.PI;
-      const width=Math.pow(Math.sin(v*Math.PI),.52)*(1.02+.18*v)*.9;
-      const center=(end.x<0?-1:1)*(1.38+.12*Math.sin(v*Math.PI));
-      target.x=THREE.MathUtils.clamp(target.x,center-width,center+width);
-      const lateral=(target.x-center)/width;
-      const depth=width*.72*Math.sqrt(Math.max(.04,1-lateral*lateral));
-      target.z=THREE.MathUtils.clamp(target.z,-depth,depth);
+      const v=THREE.MathUtils.clamp((2.6-target.y)/4.9,.03,.97);
+      const width=Math.pow(Math.sin(v*Math.PI),.55)*(1.15+.4*v)*.82;
+      const center=(end.x<0?-1:1)*(1.38+.1*v);
+      const localX=target.x-center;
+      const extent=Math.hypot(localX/width,target.z/(width*.72));
+      if(extent>1) {
+        target.x=center+localX/extent;
+        target.z/=extent;
+      }
       grow(end,target,generation+1,radius*.66,region,seed*1.17+j*3.7);
     }
   };
   lobeAnchors.forEach((lobe,i)=>{
     tree.push({curve:makeCurve(lobe.root,lobe.point,.025),radius:.103,generation:2,region:lobe.region});
-    lobe.targets.forEach((p,j)=>grow(lobe.point,new THREE.Vector3(...p),3,.071,lobe.region,i*7+j+1));
+    lobe.targets.forEach((p,j)=>grow(lobe.point,lobe.point.clone().lerp(new THREE.Vector3(...p),.76),3,.071,lobe.region,i*7+j+1));
   });
   return tree;
 }
